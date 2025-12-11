@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NLI Market Survey</title>
+<link rel="manifest" href="manifest.json">
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+  }
+</script>
+<style>
+    body { font-family: Arial; background: #f2f2f2; padding: 20px; }
+
+    /* TOP LOGO BAR */
+    .top-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: white;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 10px #bbb;
+    }
+    .top-bar img {
+        height: 40px;
+    }
+    .top-bar h2 {
+        margin: 0;
+    }
+
+    .box {
+        background: white; padding: 15px; border-radius: 10px;
+        margin-bottom: 20px; box-shadow: 0 0 10px #ccc;
+    }
+    input, select, textarea {
+        width: 100%; padding: 10px; margin: 8px 0;
+        border-radius: 5px; border: 1px solid #999;
+    }
+    button {
+        padding: 12px; width: 100%; background: #007bff;
+        border: none; border-radius: 5px; font-size: 16px; color: white;
+        margin-top: 10px;
+    }
+    button:hover { background: #0056b3; }
+
+    .small-btn {
+        padding: 5px 10px; border: none; border-radius: 5px; margin-left: 5px;
+    }
+    .delete-btn { background: red; color: white; }
+    .edit-btn { background: orange; color: white; }
+    .rename-btn { background: green; color: white; }
+</style>
+</head>
+<body>
+
+<!-- TOP LOGO AREA -->
+<div class="top-bar">
+    <img src="ENA-logo.png" alt="ENA Logo">
+    <h2>NLI Market Survey</h2>
+</div>
+
+<!-- BLOCK MANAGEMENT -->
+<div class="box">
+    <h3>Blocks Manage Karein</h3>
+
+    <label>Naya Block Add Karein:</label>
+    <input type="text" id="new_block" placeholder="e.g., Block 6">
+
+    <button onclick="addBlock()">Add Block</button>
+
+    <h4>Available Blocks:</h4>
+    <div id="block_list"></div>
+</div>
+
+<!-- SHOP FORM -->
+<div class="box">
+    <h3>Shop Survey Form</h3>
+
+    <label>Block Select Karein:</label>
+    <select id="block_dropdown" onchange="showSearchBar()">
+        <option value="">Choose Block</option>
+    </select>
+
+    <!-- SEARCH BAR -->
+    <div id="search_box" style="display:none;">
+        <label>Search Shop:</label>
+        <input type="text" id="search_text" onkeyup="searchShop()" placeholder="Search in this block…">
+    </div>
+
+    <label>Shop Name / Number:</label>
+    <input type="text" id="shop_name">
+
+    <label>Owner Name:</label>
+    <input type="text" id="owner">
+
+    <label>Contact Number:</label>
+    <input type="text" id="contact">
+
+    <label>Category:</label>
+    <input type="text" id="category">
+
+    <label>Rent (per month):</label>
+    <input type="number" id="rent">
+
+    <label>Online Shop?</label>
+    <select id="online_shop">
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+    </select>
+
+    <label>Status:</label>
+    <select id="status">
+        <option>Open</option>
+        <option>Closed</option>
+        <option>Empty</option>
+    </select>
+
+    <label>Notes:</label>
+    <textarea id="notes"></textarea>
+
+    <button id="saveBtn" onclick="saveData()">Save Shop Data</button>
+    <button id="updateBtn" onclick="updateShop()" style="display:none; background:green;">Update Shop</button>
+</div>
+
+<button onclick="viewData()">View Saved Data</button>
+<button onclick="generatePDF()">Download PDF Report</button>
+
+<div class="box" id="output"></div>
+
+<script>
+let editBlock = null;
+let editIndex = null;
+
+// Load blocks
+function loadBlocks() {
+    let blocks = JSON.parse(localStorage.getItem("blocks")) || [];
+    let listHTML = "";
+    let dropdown = `<option value="">Choose Block</option>`;
+
+    blocks.forEach((b, i) => {
+        listHTML += `
+            <div style="margin:5px 0;">
+                <b>${b}</b>
+                <button class="small-btn rename-btn" onclick="renameBlock(${i})">Rename</button>
+                <button class="small-btn delete-btn" onclick="deleteBlock(${i})">Delete</button>
+            </div>
+        `;
+        dropdown += `<option>${b}</option>`;
+    });
+
+    document.getElementById("block_list").innerHTML = listHTML;
+    document.getElementById("block_dropdown").innerHTML = dropdown;
+}
+
+// Add block
+function addBlock() {
+    let newBlock = document.getElementById("new_block").value.trim();
+    if (newBlock === "") return alert("Block ka naam likhein!");
+
+    let blocks = JSON.parse(localStorage.getItem("blocks")) || [];
+    if (blocks.includes(newBlock)) return alert("Block already exists!");
+
+    blocks.push(newBlock);
+    localStorage.setItem("blocks", JSON.stringify(blocks));
+    document.getElementById("new_block").value = "";
+    loadBlocks();
+}
+
+// Rename block
+function renameBlock(index) {
+    let blocks = JSON.parse(localStorage.getItem("blocks")) || [];
+    let oldName = blocks[index];
+    let newName = prompt("New block name:", oldName);
+
+    if (!newName || newName.trim() === "") return;
+
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+    data[newName] = data[oldName];
+    delete data[oldName];
+
+    blocks[index] = newName;
+
+    localStorage.setItem("blocks", JSON.stringify(blocks));
+    localStorage.setItem("nli_market", JSON.stringify(data));
+
+    loadBlocks();
+}
+
+// Delete block
+function deleteBlock(index) {
+    let blocks = JSON.parse(localStorage.getItem("blocks")) || [];
+    let blockName = blocks[index];
+
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+
+    blocks.splice(index, 1);
+    delete data[blockName];
+
+    localStorage.setItem("blocks", JSON.stringify(blocks));
+    localStorage.setItem("nli_market", JSON.stringify(data));
+
+    loadBlocks();
+}
+
+// Show search bar when block selected
+function showSearchBar() {
+    let block = block_dropdown.value;
+    document.getElementById("search_box").style.display = block ? "block" : "none";
+}
+
+// Save shop
+function saveData() {
+    let block = block_dropdown.value;
+    let shop_name = document.getElementById("shop_name").value;
+    if (!block || !shop_name) return alert("Block aur Shop name zaroori hai!");
+
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+    if (!data[block]) data[block] = [];
+
+    data[block].push({
+        shop_name,
+        owner: owner.value,
+        contact: contact.value,
+        category: category.value,
+        rent: rent.value,
+        online_shop: online_shop.value,
+        status: status.value,
+        notes: notes.value
+    });
+
+    localStorage.setItem("nli_market", JSON.stringify(data));
+    alert("Shop Data Save Ho Gaya!");
+    clearForm();
+}
+
+function clearForm() {
+    shop_name.value = owner.value = contact.value = category.value = rent.value = notes.value = "";
+    online_shop.value = "No";
+    status.value = "Open";
+    updateBtn.style.display = "none";
+    saveBtn.style.display = "block";
+    editBlock = null;
+    editIndex = null;
+}
+
+// Search shop inside block
+function searchShop() {
+    let block = block_dropdown.value;
+    let text = search_text.value.toLowerCase();
+
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+    let list = data[block] || [];
+
+    let results = list.filter(s =>
+        s.shop_name.toLowerCase().includes(text) ||
+        s.owner.toLowerCase().includes(text) ||
+        s.category.toLowerCase().includes(text) ||
+        s.contact.includes(text)
+    );
+
+    showSearchResults(results);
+}
+
+function showSearchResults(list) {
+    let out = "<h3>Search Results</h3>";
+
+    list.forEach((s, i) => {
+        out += `
+            <div class='box'>
+                <b>${s.shop_name}</b><br>
+                Owner: ${s.owner}<br>
+                Contact: ${s.contact}<br>
+                Category: ${s.category}<br>
+                Rent: ${s.rent}<br>
+                Online: ${s.online_shop}<br>
+                Status: ${s.status}<br>
+                Notes: ${s.notes}<br>
+            </div>
+        `;
+    });
+
+    output.innerHTML = out;
+}
+
+// View all data
+function viewData() {
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+    let out = "<h3>Saved Data</h3>";
+
+    for (let block in data) {
+        out += `<h4>${block}</h4>`;
+        data[block].forEach((s, i) => {
+            out += `
+                <div class='box'>
+                    <b>Shop ${i + 1}: ${s.shop_name}</b><br>
+                    Owner: ${s.owner}<br>
+                    Contact: ${s.contact}<br>
+                    Category: ${s.category}<br>
+                    Rent: ${s.rent}<br>
+                    Online: ${s.online_shop}<br>
+                    Status: ${s.status}<br>
+                    Notes: ${s.notes}<br>
+
+                    <button class="small-btn edit-btn" onclick="editShop('${block}', ${i})">Edit</button>
+                </div>
+            `;
+        });
+    }
+
+    document.getElementById("output").innerHTML = out;
+}
+
+// Edit shop
+function editShop(block, index) {
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+    let shop = data[block][index];
+
+    block_dropdown.value = block;
+    shop_name.value = shop.shop_name;
+    owner.value = shop.owner;
+    contact.value = shop.contact;
+    category.value = shop.category;
+    rent.value = shop.rent;
+    online_shop.value = shop.online_shop;
+    status.value = shop.status;
+    notes.value = shop.notes;
+
+    editBlock = block;
+    editIndex = index;
+
+    saveBtn.style.display = "none";
+    updateBtn.style.display = "block";
+}
+
+// Update shop
+function updateShop() {
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+
+    data[editBlock][editIndex] = {
+        shop_name: shop_name.value,
+        owner: owner.value,
+        contact: contact.value,
+        category: category.value,
+        rent: rent.value,
+        online_shop: online_shop.value,
+        status: status.value,
+        notes: notes.value
+    };
+
+    localStorage.setItem("nli_market", JSON.stringify(data));
+
+    alert("Shop Updated Successfully!");
+    clearForm();
+    viewData();
+}
+
+// PDF Generator
+function generatePDF() {
+    let data = JSON.parse(localStorage.getItem("nli_market")) || {};
+    let html = "<h1>NLI Market Survey Report</h1>";
+
+    for (let block in data) {
+        html += `<h2>${block}</h2>`;
+        data[block].forEach(s => {
+            html += `
+                <p>
+                <b>${s.shop_name}</b><br>
+                Owner: ${s.owner}<br>
+                Contact: ${s.contact}<br>
+                Category: ${s.category}<br>
+                Rent: ${s.rent}<br>
+                Online: ${s.online_shop}<br>
+                Status: ${s.status}<br>
+                Notes: ${s.notes}</p><hr>
+            `;
+        });
+    }
+
+    let win = window.open("", "_blank");
+    win.document.write(html);
+    win.print();   // Mobile & Desktop PDF generate karega
+}
+
+loadBlocks();
+</script>
+
+</body>
+</html>
